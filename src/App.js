@@ -15,8 +15,8 @@ import {
   Paper,
   Button,
   Box,
-  TextField, // Add this line
-Pagination,
+  TextField,
+  Pagination,
 } from "@mui/material";
 import { LocalizationProvider, DatePicker } from "@mui/x-date-pickers";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
@@ -32,7 +32,8 @@ function App() {
   const [userEmail, setUserEmail] = useState("");
   const [selectedDate, setSelectedDate] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
-
+  const [currentPage, setCurrentPage] = useState(1);
+  const eventsPerPage = 5;
 
   useEffect(() => {
     const initGapiClient = async () => {
@@ -73,29 +74,13 @@ function App() {
   };
 
   const fetchUserCalendarEvents = async (email) => {
-    console.log("Starting fetchUserCalendarEvents for email:", email);
-
-    if (!gapi.client.calendar) {
-      console.error("gapi.client.calendar is not initialized. Aborting API call.");
-      return [];
-    }
-
     try {
-      console.log("Making API call to gapi.client.calendar.events.list...");
-
       const response = await gapi.client.calendar.events.list({
         calendarId: email,
         maxResults: 100,
         singleEvents: true,
         orderBy: "startTime",
       });
-
-      console.log("Full API Response:", response);
-
-      if (!response || !response.result) {
-        console.error("Invalid API response:", response);
-        return [];
-      }
 
       const events = response.result.items || [];
       const sortedEvents = events.sort((a, b) => {
@@ -104,13 +89,10 @@ function App() {
         return dateB - dateA;
       });
 
-      console.log("Sorted Events (Descending):", sortedEvents);
       return sortedEvents;
     } catch (error) {
-      console.error("Error in fetchUserCalendarEvents:", error);
+      console.error("Error fetching calendar events:", error);
       return [];
-    } finally {
-      console.log("Finished executing fetchUserCalendarEvents.");
     }
   };
 
@@ -123,57 +105,20 @@ function App() {
       })
     : events;
 
+  const filteredEventsByName = events.filter((event) =>
+    event.summary?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
+  const indexOfLastEvent = currentPage * eventsPerPage;
+  const indexOfFirstEvent = indexOfLastEvent - eventsPerPage;
+  const currentEvents = filteredEventsByName.slice(
+    indexOfFirstEvent,
+    indexOfLastEvent
+  );
 
-    const filteredEventsByName = events.filter((event) =>
-      event.summary?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-    
-
-    const [currentPage, setCurrentPage] = useState(1);
-    const eventsPerPage = 5;
-    
-    const indexOfLastEvent = currentPage * eventsPerPage;
-    const indexOfFirstEvent = indexOfLastEvent - eventsPerPage;
-    const currentEvents = events.slice(indexOfFirstEvent, indexOfLastEvent);
-    
-    const handlePageChange = (event, value) => {
-      setCurrentPage(value);
-    };
-    
-    const createEvent = async () => {
-      try {
-        const event = {
-          summary: "New Event",
-          start: {
-            dateTime: new Date().toISOString(),
-            timeZone: "Asia/Kolkata",
-          },
-          end: {
-            dateTime: new Date(Date.now() + 3600000).toISOString(), // 1 hour later
-            timeZone: "Asia/Kolkata",
-          },
-        };
-    
-        const response = await gapi.client.calendar.events.insert({
-          calendarId: "primary",
-          resource: event,
-        });
-    
-        console.log("Event Created:", response);
-        alert("Event created successfully!");
-      } catch (error) {
-        console.error("Error creating event:", error);
-      }
-    };
-    
-
-
-
-
-
-
-
+  const handlePageChange = (event, value) => {
+    setCurrentPage(value);
+  };
 
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
@@ -217,44 +162,33 @@ function App() {
                 renderInput={(params) => <TextField {...params} />}
               />
               <TextField
-  label="Search Events"
-  variant="outlined"
-  fullWidth
-  sx={{ marginBottom: "20px" }}
-  onChange={(e) => setSearchTerm(e.target.value)}
-/>
-
-{/* <Button
-  variant="contained"
-  color="success"
-  onClick={createEvent}
-  sx={{ marginTop: "20px" }}
->
-  Create Event
-</Button>
- */}
-<Button
-  variant="contained"
-  color="blue"
-  sx={{ margin: "20px" }}
->
-  <CSVLink
-    data={events.map((event) => ({
-      Name: event.summary || "No Title",
-      Date: new Date(event.start.dateTime || event.start.date).toLocaleDateString(),
-      Time: event.start.dateTime
-        ? new Date(event.start.dateTime).toLocaleTimeString()
-        : "All Day",
-      Location: event.location || "N/A",
-    }))}
-    filename="events.csv"
-  >
-    Export to CSV
-  </CSVLink>
-</Button>
-
-
-
+                label="Search Events"
+                variant="outlined"
+                fullWidth
+                sx={{ marginBottom: "20px" }}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+              <Button
+                variant="contained"
+                color="blue"
+                sx={{ margin: "20px" }}
+              >
+                <CSVLink
+                  data={events.map((event) => ({
+                    Name: event.summary || "No Title",
+                    Date: new Date(
+                      event.start.dateTime || event.start.date
+                    ).toLocaleDateString(),
+                    Time: event.start.dateTime
+                      ? new Date(event.start.dateTime).toLocaleTimeString()
+                      : "All Day",
+                    Location: event.location || "N/A",
+                  }))}
+                  filename="events.csv"
+                >
+                  Export to CSV
+                </CSVLink>
+              </Button>
               {filteredEvents.length > 0 ? (
                 <TableContainer component={Paper} sx={{ marginTop: "20px" }}>
                   <Table>
@@ -267,7 +201,7 @@ function App() {
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {filteredEventsByName.map((event, index) => (
+                      {currentEvents.map((event, index) => (
                         <TableRow key={index}>
                           <TableCell>{event.summary || "No Title"}</TableCell>
                           <TableCell>
@@ -284,19 +218,6 @@ function App() {
                         </TableRow>
                       ))}
                     </TableBody>
-
-
-
-                    <Box sx={{ marginTop: "20px" }}>
-  <Pagination
-    count={Math.ceil(events.length / eventsPerPage)}
-    page={currentPage}
-    onChange={handlePageChange}
-    color="primary"
-  />
-</Box>
-
-
                   </Table>
                 </TableContainer>
               ) : (
@@ -304,12 +225,19 @@ function App() {
                   No events found for the selected date.
                 </Typography>
               )}
+              <Box sx={{ marginTop: "20px" }}>
+                <Pagination
+                  count={Math.ceil(filteredEventsByName.length / eventsPerPage)}
+                  page={currentPage}
+                  onChange={handlePageChange}
+                  color="primary"
+                />
+              </Box>
             </>
           )}
         </Container>
       </Box>
     </LocalizationProvider>
-    
   );
 }
 
