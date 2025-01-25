@@ -49,5 +49,5 @@ This is a **Google Calendar Integration Web App** built using React and Google A
    git clone <repository-url>
    cd <repository-directory>
 2.    ```bash
-npm install
-npm start
+       npm install
+       npm start
